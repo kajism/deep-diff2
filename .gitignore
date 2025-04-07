@@ -21,3 +21,4 @@ resources/public/
 package-lock.json
 .cache
 *.iml
+/.idea/

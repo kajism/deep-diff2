@@ -1,6 +1,6 @@
 (ns lambdaisland.deep-diff2.minimize-impl
   "Provide API for manipulate the diff structure data "
-  (:require [clojure.walk :refer [postwalk]]
+  (:require [clojure.walk :refer [prewalk]]
             #?(:clj [lambdaisland.deep-diff2.diff-impl]
                :cljs [lambdaisland.deep-diff2.diff-impl :refer [Mismatch Deletion Insertion]]))
   #?(:clj (:import [lambdaisland.deep_diff2.diff_impl Mismatch Deletion Insertion])))
@@ -23,25 +23,34 @@
 (defn minimize
   "Postwalk diff, removing values that are unchanged"
   [diff]
-  (let [y (postwalk
-           (fn [x]
-             (cond
-               (map-entry? x)
-               ;; Either k or v of a map-entry contains/is? diff-item,
-               ;; keep the map-entry. Otherwise, remove it.
-               (when (or (has-diff-item? (key x))
-                         (has-diff-item? (val x)))
-                 x)
+  (let [y (prewalk
+            (let [_diff-key? (atom false)]
+              (fn [x]
+                (cond
+                  (map-entry? x)
+                  ;; Either k or v of a map-entry contains/is? diff-item,
+                  ;; keep the map-entry. Otherwise, remove it.
+                  (do
+                    (reset! _diff-key? (contains? #{:+ :-} (key x)))
+                    (when (or (has-diff-item? (key x))
+                              (has-diff-item? (val x)))
+                      x))
 
-               (map? x)
-               x
+                  (map? x)
+                  x
 
-               (coll? x)
-               (into (empty x) (filter has-diff-item?) x)
+                  (coll? x)
+                  (if @_diff-key?
+                    x
+                    (into (empty x) (filter has-diff-item?) x))
 
-               :else
-               x))
-           diff)]
+                  :else
+                  x)))
+            diff)]
     (cond
       (coll? y) y
       :else     nil)))
+
+(comment
+  (minimize {(Insertion. :b) [1 2]})
+  )
