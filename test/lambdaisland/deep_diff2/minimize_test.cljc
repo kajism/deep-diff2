@@ -66,7 +66,7 @@
     (testing "when equal with clojure nesting vector"
       (is (= (ddiff/minimize
               (ddiff/diff [:a [:b :c :d]] [:a [:b :c :d]]))
-             [])))
+             [[]])))
 
     (testing "adding new map keys with scalar value"
       (is (= (ddiff/minimize
@@ -78,6 +78,11 @@
                (ddiff/diff {:a 1} {:a 1 :b [1 2]}))
              {(diff/->Insertion :b) [1 2]})))
 
+    (testing "adding new map keys with nested collection"
+      (is (= (ddiff/minimize
+               (ddiff/diff {:a 1} {:a 1 :b [{:x 1} {:x 2}]}))
+             {(diff/->Insertion :b) [{:x 1} {:x 2}]})))
+
     (testing "removing map keys with scalar value"
       (is (= (ddiff/minimize
                (ddiff/diff {:a 1 :b 2} {:a 1}))
@@ -86,7 +91,24 @@
     (testing "removing map keys with collection"
       (is (= (ddiff/minimize
                (ddiff/diff {:a 1 :b [1 2]} {:a 1}))
-             {(diff/->Deletion :b) [1 2]})))))
+             {(diff/->Deletion :b) [1 2]})))
+
+    (testing "removing map keys with nested collection"
+      (is (= (ddiff/minimize
+               (ddiff/diff {:a 1 :b [{:x 1} {:x 2}]} {:a 1}))
+             {(diff/->Deletion :b) [{:x 1} {:x 2}]})))
+
+    (testing "collection of diffs"
+      (is (= (ddiff/minimize
+               [(ddiff/diff {:a 1} {:a 1})
+                (ddiff/diff {:a 1} {:a 2})
+                (ddiff/diff {:a 1} {:b 1})
+                (ddiff/diff {:a 1 :b 2} {:a 1 :b 3})])
+             [{}
+              {:a (diff/->Mismatch 1 2)}
+              {(diff/->Insertion :b) 1
+               (diff/->Deletion :a) 1}
+              {:b (diff/->Mismatch 2 3)}])))))
 
 ;; "diff itself and minimize yields empty"
 (defspec diff-itself 100

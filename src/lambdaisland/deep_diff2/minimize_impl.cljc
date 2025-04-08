@@ -1,7 +1,7 @@
 (ns lambdaisland.deep-diff2.minimize-impl
   "Provide API for manipulate the diff structure data "
   (:require [clojure.walk :refer [prewalk]]
-            #?(:clj [lambdaisland.deep-diff2.diff-impl]
+            #?(:clj  [lambdaisland.deep-diff2.diff-impl]
                :cljs [lambdaisland.deep-diff2.diff-impl :refer [Mismatch Deletion Insertion]]))
   #?(:clj (:import [lambdaisland.deep_diff2.diff_impl Mismatch Deletion Insertion])))
 
@@ -21,35 +21,33 @@
       (and (coll? x) (some has-diff-item? x))))
 
 (defn minimize
-  "Postwalk diff, removing values that are unchanged"
-  [diff]
-  (let [y (prewalk
-            (let [_diff-key? (atom false)]
-              (fn [x]
-                (cond
-                  (map-entry? x)
-                  ;; Either k or v of a map-entry contains/is? diff-item,
-                  ;; keep the map-entry. Otherwise, remove it.
-                  (do
-                    (reset! _diff-key? (contains? #{:+ :-} (key x)))
-                    (when (or (has-diff-item? (key x))
-                              (has-diff-item? (val x)))
-                      x))
+  "Recursive version of minimize showing full values of added/removed map keys"
+  [x]
+  (let [y (cond
+            (diff-item? x)
+            x
 
-                  (map? x)
-                  x
+            (map-entry? x)
+            (cond
+              (diff-item? (key x))
+              x
 
-                  (coll? x)
-                  (if @_diff-key?
-                    x
-                    (into (empty x) (filter has-diff-item?) x))
+              (has-diff-item? (val x))
+              [(key x) (minimize (val x))])
 
-                  :else
-                  x)))
-            diff)]
+            (map? x)
+            (->> x
+                 (keep #(minimize %))
+                 (into {}))
+
+            (coll? x)
+            (into (empty x) (keep #(minimize %) x))
+
+            :else
+            x)]
     (cond
       (coll? y) y
-      :else     nil)))
+      :else nil)))
 
 (comment
   (minimize {(Insertion. :b) [1 2]})
